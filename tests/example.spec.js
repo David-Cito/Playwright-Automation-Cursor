@@ -26,9 +26,9 @@ async function getSoonestAppointmentForLocation(page, locationName) {
     // Spinner didn't appear - that's OK.
   }
   await spinner.waitFor({ state: 'hidden', timeout: 60_000 });
-  await page.getByText('Select location to schedule ticket at').waitFor({
-    timeout: 60_000,
-  });
+  await page
+    .getByText('Select location to schedule ticket at')
+    .waitFor({ timeout: 90_000 });
 
   // Location pick
   const locationTile = page
