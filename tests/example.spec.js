@@ -14,7 +14,7 @@ test.describe('Basic Website Test', () => {
 
   test('should verify page content', async ({ page }) => {
     // Navigate to the website
-    await page.goto('https://example.com');
+    await page.goto('https://alohaq.honolulu.gov/?1&cat=1&name=Driver%20Licensing%20and%20Satellite%20Services');
     
     // Verify that the page contains expected text
     await expect(page.locator('body')).toContainText('Example Domain');
