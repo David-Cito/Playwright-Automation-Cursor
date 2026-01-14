@@ -28,4 +28,3 @@ jobs:
 
       - name: Run DMV appointment bot
         run: npm test
-
