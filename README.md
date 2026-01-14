@@ -1,4 +1,4 @@
-# Playwright Automation Bot Template
+# DMV Appointment Bot
 
 A basic template for Playwright automation testing that loads a website and runs tests.
 

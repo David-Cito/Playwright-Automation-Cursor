@@ -1,5 +1,5 @@
 {
-  "name": "playwright-automation-bot",
+  "name": "dmv-appointment-bot",
   "version": "1.0.0",
   "description": "Basic Playwright automation template",
   "main": "index.js",
