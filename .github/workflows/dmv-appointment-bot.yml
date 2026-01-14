@@ -2,9 +2,13 @@ name: DMV Appointment Bot
 
 on:
   schedule:
-    # Run roughly every 10 minutes (GitHub does not guarantee exact timing)
-    - cron: "*/10 * * * *"
+    # Run roughly every 5 minutes (GitHub does not guarantee exact timing)
+    - cron: "*/5 * * * *"
   workflow_dispatch: {}
+
+concurrency:
+  group: dmv-appointment-bot
+  cancel-in-progress: true
 
 jobs:
   run-bot:
