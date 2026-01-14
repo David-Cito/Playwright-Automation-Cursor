@@ -29,24 +29,38 @@ function todayPlus(days) {
   return iso;
 }
 
-async function getSoonestAppointmentForLocation(page, locationName) {
+async function getSoonestAppointmentForLocation(page, locationName, opts = {}) {
+  const { forceReload = false } = opts;
   await page.goto(START_URL, { waitUntil: 'domcontentloaded' });
   await page.waitForLoadState('networkidle');
+
+  // Optional hard refresh to recover from flaky first-load states.
+  if (forceReload) {
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForLoadState('networkidle');
+  }
 
   await page.getByText('Driver Licensing and').click();
   await page.getByText('Make Appointment').click();
 
   // Wait for transition to the locations page. The spinner may appear briefly.
   const spinner = page.locator('.loading > .fa').first();
-  try {
-    await spinner.waitFor({ state: 'visible', timeout: 10_000 });
-  } catch {
-    // Spinner didn't appear - that's OK.
+  const header = page.getByText('Select location to schedule ticket at');
+
+  // If header isn't visible within 45s, retry clicking "Make Appointment" once.
+  const headerPromise = header.waitFor({ timeout: 45_000 }).catch(() => null);
+  const spinnerVisible = spinner.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => null);
+  const spinnerHidden = spinner.waitFor({ state: 'hidden', timeout: 90_000 }).catch(() => null);
+
+  const headerSeen = await headerPromise;
+  if (!headerSeen) {
+    await page.getByText('Make Appointment').click();
   }
-  await spinner.waitFor({ state: 'hidden', timeout: 60_000 });
-  await page
-    .getByText('Select location to schedule ticket at')
-    .waitFor({ timeout: 90_000 });
+
+  // Ensure spinner is done (best-effort) and header visible (hard requirement).
+  await spinnerVisible;
+  await spinnerHidden;
+  await header.waitFor({ timeout: 120_000 });
 
   // Location pick
   const locationTile = page
@@ -146,34 +160,60 @@ test('dmv appointment bot - check soonest appointments by location', async ({
   const results = [];
 
   for (const locationName of LOCATIONS) {
-    const context = await browser.newContext();
-    const page = await context.newPage();
+    // Helper to run one attempt (optionally with hard reload) and clean up its context.
+    const runAttempt = async (forceReload = false) => {
+      const context = await browser.newContext();
+      const page = await context.newPage();
+      try {
+        const res = await getSoonestAppointmentForLocation(page, locationName, {
+          forceReload,
+        });
+        return res;
+      } finally {
+        await context.close();
+      }
+    };
 
+    let res;
     try {
-      const res = await getSoonestAppointmentForLocation(page, locationName);
-      results.push(res);
-      if (res.ok) {
-        console.log(
-          `[${locationName}] soonest: ${res.dataVal} (${res.dateText} ${res.timeText})`
-        );
-      } else {
-        console.log(`[${locationName}] no result: ${res.reason}`);
-      }
-
-      // Keep the page open only when running locally so you can visually inspect
-      // the times. In CI we skip this pause to avoid hitting test timeouts.
-      if (!process.env.CI) {
-        await page.waitForTimeout(5000);
-      }
+      res = await runAttempt(false);
     } catch (e) {
-      results.push({
-        locationName,
-        ok: false,
-        reason: e && e.message ? e.message : String(e),
-      });
-      console.log(`[${locationName}] error: ${e && e.message ? e.message : e}`);
-    } finally {
-      await context.close();
+      console.log(
+        `[${locationName}] first attempt error: ${e && e.message ? e.message : e
+        } — retrying with hard reload`
+      );
+    }
+
+    // Retry once with hard reload if first attempt threw.
+    if (!res) {
+      try {
+        res = await runAttempt(true);
+      } catch (e2) {
+        res = {
+          locationName,
+          ok: false,
+          reason: e2 && e2.message ? e2.message : String(e2),
+        };
+        console.log(
+          `[${locationName}] retry error: ${e2 && e2.message ? e2.message : e2}`
+        );
+      }
+    }
+
+    results.push(res);
+    if (res && res.ok) {
+      console.log(
+        `[${locationName}] soonest: ${res.dataVal} (${res.dateText} ${res.timeText})`
+      );
+    } else {
+      console.log(`[${locationName}] no result: ${res ? res.reason : 'unknown error'}`);
+    }
+
+    // Keep the page open only when running locally so you can visually inspect
+    // the times. In CI we skip this pause to avoid hitting test timeouts.
+    if (!process.env.CI) {
+      // Give a moment to observe before moving to next location.
+      await new Promise((r) => setTimeout(r, 2000));
     }
   }
 
