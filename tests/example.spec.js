@@ -142,9 +142,11 @@ test('dmv appointment bot - check soonest appointments by location', async ({
         console.log(`[${locationName}] no result: ${res.reason}`);
       }
 
-      // Keep the page open for a bit so you can visually inspect the times
-      // before moving on to the next location when running headed.
-      await page.waitForTimeout(5000);
+      // Keep the page open only when running locally so you can visually inspect
+      // the times. In CI we skip this pause to avoid hitting test timeouts.
+      if (!process.env.CI) {
+        await page.waitForTimeout(5000);
+      }
     } catch (e) {
       results.push({
         locationName,

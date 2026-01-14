@@ -12,6 +12,8 @@ const { defineConfig, devices } = require('@playwright/test');
  */
 module.exports = defineConfig({
   testDir: './tests',
+  // Increase per-test timeout so the bot has enough time in CI even without slowMo.
+  timeout: 120_000,
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: 0,
@@ -21,10 +23,11 @@ module.exports = defineConfig({
     // baseURL: 'http://127.0.0.1:3000',
     actionTimeout: 30_000,
     navigationTimeout: 60_000,
-    launchOptions: {
-      slowMo: 750,
-    },
-    trace: 'off',
+    // Only slow down locally; CI runs headless & fast.
+    launchOptions: process.env.CI
+      ? { headless: true }
+      : { slowMo: 750 },
+    trace: process.env.CI ? 'on-first-retry' : 'off',
   },
   projects: [
     {
