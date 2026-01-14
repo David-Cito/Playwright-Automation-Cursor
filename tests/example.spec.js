@@ -11,6 +11,10 @@ const LOCATIONS = [
   'Windward City Satellite City Hall',
 ];
 
+// Optional threshold date (YYYY-MM-DD) to decide if a slot is "interesting".
+// You can change it here or set env DMV_TARGET_DATE at runtime.
+const TARGET_DATE = process.env.DMV_TARGET_DATE || '';
+
 async function getSoonestAppointmentForLocation(page, locationName) {
   await page.goto(START_URL, { waitUntil: 'domcontentloaded' });
   await page.waitForLoadState('networkidle');
@@ -161,4 +165,18 @@ test('dmv appointment bot - check soonest appointments by location', async ({
 
   const okCount = results.filter((r) => r.ok).length;
   console.log(`Done. Locations checked: ${results.length}, successes: ${okCount}`);
+
+  // If a target date is provided, surface any slots on/before that date.
+  if (TARGET_DATE) {
+    const matches = results.filter(
+      (r) => r.ok && r.dataVal && r.dataVal.split(' ')[0] <= TARGET_DATE
+    );
+    if (matches.length) {
+      console.log(
+        `NOTIFY: slots on or before ${TARGET_DATE} -> ${JSON.stringify(matches)}`
+      );
+    } else {
+      console.log(`NOTIFY: none on or before ${TARGET_DATE}`);
+    }
+  }
 });

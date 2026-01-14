@@ -5,7 +5,12 @@ on:
     # Run roughly every 5 minutes (GitHub does not guarantee exact timing)
     # Note: Scheduled workflows only run on the default branch (main/master)
     - cron: "*/5 * * * *"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      target_date:
+        description: "Target date (YYYY-MM-DD) to alert on/before"
+        required: false
+        default: ""
 
 jobs:
   run-bot:
@@ -13,6 +18,9 @@ jobs:
     concurrency:
       group: dmv-appointment-bot
       cancel-in-progress: true
+    env:
+      # Priority: manual input > repo variable DMV_TARGET_DATE > fallback
+      DMV_TARGET_DATE: ${{ github.event_name == 'workflow_dispatch' && inputs.target_date || vars.DMV_TARGET_DATE || '' }}
 
     steps:
       - name: Checkout repo
