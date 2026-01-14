@@ -162,3 +162,4 @@ test('dmv appointment bot - check soonest appointments by location', async ({
   const okCount = results.filter((r) => r.ok).length;
   console.log(`Done. Locations checked: ${results.length}, successes: ${okCount}`);
 });
+l
