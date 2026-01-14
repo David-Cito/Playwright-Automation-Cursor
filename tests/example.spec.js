@@ -11,9 +11,23 @@ const LOCATIONS = [
   'Windward City Satellite City Hall',
 ];
 
-// Optional threshold date (YYYY-MM-DD) to decide if a slot is "interesting".
-// You can change it here or set env DMV_TARGET_DATE at runtime.
-const TARGET_DATE = process.env.DMV_TARGET_DATE || '';
+// Optional threshold date (YYYY-MM-DD) and window days (±) to decide if a slot is "interesting".
+// You can change these via env DMV_TARGET_DATE and DMV_TARGET_WINDOW_DAYS at runtime.
+// If TARGET_DATE is empty, we default to today + 60 days. If window is empty, default to 60 days.
+const TARGET_DATE_ENV = process.env.DMV_TARGET_DATE || '';
+const TARGET_WINDOW_ENV = process.env.DMV_TARGET_WINDOW_DAYS || '';
+
+function toTime(dateStr) {
+  // Expects YYYY-MM-DD; returns ms or NaN.
+  return Date.parse(dateStr);
+}
+
+function todayPlus(days) {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + days);
+  const iso = d.toISOString().slice(0, 10); // YYYY-MM-DD
+  return iso;
+}
 
 async function getSoonestAppointmentForLocation(page, locationName) {
   await page.goto(START_URL, { waitUntil: 'domcontentloaded' });
@@ -166,17 +180,33 @@ test('dmv appointment bot - check soonest appointments by location', async ({
   const okCount = results.filter((r) => r.ok).length;
   console.log(`Done. Locations checked: ${results.length}, successes: ${okCount}`);
 
-  // If a target date is provided, surface any slots on/before that date.
-  if (TARGET_DATE) {
+  // If a target date is provided, surface any slots within ±window days of that date.
+  const resolvedTargetDate = TARGET_DATE_ENV || todayPlus(60);
+  const resolvedWindowDays =
+    TARGET_WINDOW_ENV === '' ? 60 : Number(TARGET_WINDOW_ENV || 0);
+
+  if (resolvedTargetDate) {
+    const targetTime = toTime(resolvedTargetDate);
+    const windowMs = Math.abs(resolvedWindowDays) * 24 * 60 * 60 * 1000;
     const matches = results.filter(
-      (r) => r.ok && r.dataVal && r.dataVal.split(' ')[0] <= TARGET_DATE
+      (r) => {
+        if (!r.ok || !r.dataVal) return false;
+        const slotDate = r.dataVal.split(' ')[0];
+        const slotTime = toTime(slotDate);
+        if (Number.isNaN(slotTime) || Number.isNaN(targetTime)) return false;
+        return slotTime >= targetTime - windowMs && slotTime <= targetTime + windowMs;
+      }
     );
     if (matches.length) {
       console.log(
-        `NOTIFY: slots on or before ${TARGET_DATE} -> ${JSON.stringify(matches)}`
+        `NOTIFY: slots within ±${resolvedWindowDays}d of ${resolvedTargetDate} -> ${JSON.stringify(
+          matches
+        )}`
       );
     } else {
-      console.log(`NOTIFY: none on or before ${TARGET_DATE}`);
+      console.log(
+        `NOTIFY: none within ±${resolvedWindowDays}d of ${resolvedTargetDate}`
+      );
     }
   }
 });
