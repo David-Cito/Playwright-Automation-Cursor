@@ -1,4 +1,4 @@
-name: DMV Appointment Bot
+name: Appointment Capture & Analysis
 
 on:
   schedule:
@@ -18,12 +18,12 @@ on:
         type: number
 
 jobs:
-  run-bot:
+  run-capture:
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v1.57.0-jammy
     concurrency:
-      group: dmv-appointment-bot
+      group: appointment-capture
       cancel-in-progress: true
     env:
       # Priority: manual input > repo variable DMV_TARGET_DATE > fallback
@@ -38,7 +38,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run DMV appointment bot
+      - name: Run appointment capture suite
         run: npm test
 
       - name: Analyze results
