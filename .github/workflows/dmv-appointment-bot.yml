@@ -58,18 +58,6 @@ jobs:
           const windowDays = data.targetWindowDays || 0;
           const generatedAt = data.generatedAt || new Date().toISOString();
 
-          // TEMP: inject a fake January alert to exercise subject logic; remove after testing.
-          const fakeJanAlert = {
-            locationName: 'Downtown Satellite City Hall',
-            dataVal: '2026-01-12 09:00:00',
-            dateText: '2026-01-12',
-            timeText: '09:00 AM',
-            ok: true,
-            reason: '',
-          };
-          results.unshift(fakeJanAlert);
-          alerts.unshift(fakeJanAlert);
-
           const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
           const ordinal = (n) => {
             const s = ['th','st','nd','rd'];
@@ -173,22 +161,24 @@ jobs:
           console.log(`Alerts found: ${alerts.length}`);
           EOF
 
-      # Optional: send an email if any alert matches the target window.
-      # Configure SMTP_* and DMV_EMAIL_* as encrypted repo/organization secrets.
-      - name: Send email notification
-        if: steps.analyze.outputs.should_email == 'true'
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: ${{ secrets.SMTP_SERVER }}
-          server_port: ${{ secrets.SMTP_PORT }}
-          username: ${{ secrets.SMTP_USERNAME }}
-          password: ${{ secrets.SMTP_PASSWORD }}
-          subject: ${{ steps.analyze.outputs.subject }}
-          to: ${{ secrets.DMV_EMAIL_TO }}
-          from: ${{ secrets.DMV_EMAIL_FROM }}
-          secure: true
-          html_body: ${{ steps.analyze.outputs.email_html }}
-          body: ${{ steps.analyze.outputs.email_text }}
+      - name: Aggregate API captures
+        run: npm run aggregate:capture
+
+      # Email notification disabled for now; leave config as a quick toggle.
+      # - name: Send email notification
+      #   if: steps.analyze.outputs.should_email == 'true'
+      #   uses: dawidd6/action-send-mail@v3
+      #   with:
+      #     server_address: ${{ secrets.SMTP_SERVER }}
+      #     server_port: ${{ secrets.SMTP_PORT }}
+      #     username: ${{ secrets.SMTP_USERNAME }}
+      #     password: ${{ secrets.SMTP_PASSWORD }}
+      #     subject: ${{ steps.analyze.outputs.subject }}
+      #     to: ${{ secrets.DMV_EMAIL_TO }}
+      #     from: ${{ secrets.DMV_EMAIL_FROM }}
+      #     secure: true
+      #     html_body: ${{ steps.analyze.outputs.email_html }}
+      #     body: ${{ steps.analyze.outputs.email_text }}
 
       - name: Upload screenshots
         if: always()
