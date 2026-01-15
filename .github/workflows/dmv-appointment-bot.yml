@@ -1,4 +1,5 @@
 name: Appointment Capture & Analysis
+run-name: Appointment Capture & Analysis #${{ github.run_number + 1 }}
 
 on:
   schedule:
