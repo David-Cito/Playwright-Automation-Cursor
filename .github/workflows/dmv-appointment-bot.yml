@@ -21,7 +21,7 @@ jobs:
   run-bot:
     runs-on: ubuntu-latest
     container:
-      image: mcr.microsoft.com/playwright:v1.40.0-jammy
+      image: mcr.microsoft.com/playwright:v1.57.0-jammy
     concurrency:
       group: dmv-appointment-bot
       cancel-in-progress: true
