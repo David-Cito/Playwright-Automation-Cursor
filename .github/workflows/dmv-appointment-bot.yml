@@ -58,65 +58,69 @@ jobs:
           const windowDays = data.targetWindowDays || 0;
           const generatedAt = data.generatedAt || new Date().toISOString();
 
+          const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+          const ordinal = (n) => {
+            const s = ['th','st','nd','rd'];
+            const v = n % 100;
+            return s[(v - 20) % 10] || s[v] || s[0];
+          };
+          const formatDate = (s) => {
+            if (!s) return '';
+            const d = new Date(s);
+            if (Number.isNaN(d.getTime())) return s;
+            const day = d.getUTCDate();
+            const month = monthNames[d.getUTCMonth()];
+            const year = d.getUTCFullYear();
+            return `${month} ${day}${ordinal(day)}, ${year}`;
+          };
+
           let should = 'false';
           const allRows = results.map((r) => {
             const raw = r.dataVal || '';
             const date = raw.split(' ')[0] || r.dateText || '';
             const time = r.timeText || (raw.split(' ')[1] || '');
-            return { loc: r.locationName || 'Unknown', date, time, raw, ok: r.ok, reason: r.reason || '' };
+            return {
+              loc: r.locationName || 'Unknown',
+              date,
+              time,
+              raw,
+              ok: r.ok,
+              reason: r.reason || '',
+              prettyDate: formatDate(raw.split(' ')[0] || r.dateText || ''),
+            };
           });
 
-          let textBody = `No alerts within target window (${targetDate} ±${windowDays}d).\n\nAll locations:\n` +
+          let textBody = `Target window: ${targetDate} ±${windowDays}d\n` +
+            `All locations (soonest found):\n` +
             (allRows.length
-              ? allRows.map(r => `- ${r.loc}: ${r.date} ${r.time} (${r.raw || 'n/a'})${r.ok ? '' : ' [no result: ' + r.reason + ']'}`).join('\n')
+              ? allRows.map(r => `- ${r.loc}: ${r.prettyDate || r.date} ${r.time}${r.ok ? '' : ' [no result: ' + r.reason + ']'}`).join('\n')
               : 'No results');
 
           let htmlBody = `
-              <h2>DMV Appointment Results</h2>
+              <h3>DMV Appointment Results</h3>
               <p>Target window: <strong>${targetDate} ±${windowDays}d</strong></p>
-              <h3>All locations (soonest found)</h3>
-              <table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse;">
-                <thead><tr><th>Location</th><th>Date</th><th>Time</th><th>Raw</th><th>Status</th></tr></thead>
-                <tbody>
-                  ${allRows.length ? allRows.map(r => `<tr><td>${r.loc}</td><td>${r.date}</td><td>${r.time}</td><td>${r.raw}</td><td>${r.ok ? 'OK' : 'No result: ' + r.reason}</td></tr>`).join('') : '<tr><td colspan="5">No results</td></tr>'}
-                </tbody>
-              </table>
+              <p><strong>All locations (soonest found):</strong><br>
+              ${allRows.length ? allRows.map(r => `${r.loc}: ${r.prettyDate || r.date} ${r.time}${r.ok ? '' : ' [no result: ' + r.reason + ']'}`).join('<br>') : 'No results'}
+              </p>
             `;
 
           if (alerts.length > 0) {
             should = 'true';
-            const rows = alerts.map((a) => {
-              const raw = a.dataVal || '';
-              const date = raw.split(' ')[0] || a.dateText || '';
-              const time = a.timeText || (raw.split(' ')[1] || '');
-              return { loc: a.locationName || 'Unknown', date, time, raw };
-            });
             textBody =
               `Target window: ${targetDate} ±${windowDays}d\n` +
-              `Alerts:\n` +
-              rows.map((r) => `- ${r.loc}: ${r.date} ${r.time} (${r.raw})`).join('\n') +
-              `\n\nAll locations:\n` +
+              `Alerts found in target window.\n\n` +
+              `All locations (soonest found):\n` +
               (allRows.length
-                ? allRows.map(r => `- ${r.loc}: ${r.date} ${r.time} (${r.raw || 'n/a'})${r.ok ? '' : ' [no result: ' + r.reason + ']'}`).join('\n')
+                ? allRows.map(r => `- ${r.loc}: ${r.prettyDate || r.date} ${r.time}${r.ok ? '' : ' [no result: ' + r.reason + ']'}`).join('\n')
                 : 'No results');
 
             htmlBody = `
-              <h2>DMV Appointment Alerts</h2>
+              <h3>DMV Appointment Alerts</h3>
               <p>Target window: <strong>${targetDate} ±${windowDays}d</strong></p>
-              <h3>Alerts</h3>
-              <table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; margin-bottom:12px;">
-                <thead><tr><th>Location</th><th>Date</th><th>Time</th><th>Raw</th></tr></thead>
-                <tbody>
-                  ${rows.map(r => `<tr><td>${r.loc}</td><td>${r.date}</td><td>${r.time}</td><td>${r.raw}</td></tr>`).join('')}
-                </tbody>
-              </table>
-              <h3>All locations (soonest found)</h3>
-              <table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse;">
-                <thead><tr><th>Location</th><th>Date</th><th>Time</th><th>Raw</th><th>Status</th></tr></thead>
-                <tbody>
-                  ${allRows.length ? allRows.map(r => `<tr><td>${r.loc}</td><td>${r.date}</td><td>${r.time}</td><td>${r.raw}</td><td>${r.ok ? 'OK' : 'No result: ' + r.reason}</td></tr>`).join('') : '<tr><td colspan="5">No results</td></tr>'}
-                </tbody>
-              </table>
+              <p><strong>Alerts found in target window.</strong></p>
+              <p><strong>All locations (soonest found):</strong><br>
+              ${allRows.length ? allRows.map(r => `${r.loc}: ${r.prettyDate || r.date} ${r.time}${r.ok ? '' : ' [no result: ' + r.reason + ']'}`).join('<br>') : 'No results'}
+              </p>
               <p>Generated at: ${generatedAt}</p>
             `;
           }
