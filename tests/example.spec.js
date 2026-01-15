@@ -1,4 +1,6 @@
 const { test } = require('@playwright/test');
+const fs = require('fs');
+const path = require('path');
 
 const START_URL =
   'https://alohaq.honolulu.gov/';
@@ -164,11 +166,48 @@ test('dmv appointment bot - check soonest appointments by location', async ({
     const runAttempt = async (forceReload = false) => {
       const context = await browser.newContext();
       const page = await context.newPage();
+      const attemptLabel = forceReload ? 'retry' : 'first';
+      const attemptLogs = [];
+      const safeName = locationName.replace(/\s+/g, '_');
+      const screenshotDir = path.join(process.cwd(), 'screenshots');
+      const screenshotPath = path.join(
+        screenshotDir,
+        `${safeName}-${attemptLabel}-${Date.now()}.png`
+      );
+
+      // Capture console logs for debugging.
+      page.on('console', (msg) => {
+        attemptLogs.push(`[${msg.type()}] ${msg.text()}`);
+      });
+
+      // Ensure screenshot directory exists.
+      if (!fs.existsSync(screenshotDir)) {
+        fs.mkdirSync(screenshotDir, { recursive: true });
+      }
+
       try {
         const res = await getSoonestAppointmentForLocation(page, locationName, {
           forceReload,
         });
         return res;
+      } catch (e) {
+        // Take a screenshot on failure for diagnostics.
+        try {
+          await page.screenshot({ path: screenshotPath, fullPage: true });
+          console.log(
+            `[${locationName}] ${attemptLabel} attempt screenshot saved: ${screenshotPath}`
+          );
+        } catch (sErr) {
+          console.log(
+            `[${locationName}] ${attemptLabel} attempt screenshot failed: ${sErr?.message || sErr}`
+          );
+        }
+        if (attemptLogs.length) {
+          console.log(
+            `[${locationName}] ${attemptLabel} attempt console logs:\n${attemptLogs.join('\n')}`
+          );
+        }
+        throw e;
       } finally {
         await context.close();
       }

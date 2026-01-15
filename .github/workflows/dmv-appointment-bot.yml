@@ -20,6 +20,8 @@ on:
 jobs:
   run-bot:
     runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.40.0-jammy
     concurrency:
       group: dmv-appointment-bot
       cancel-in-progress: true
@@ -31,18 +33,10 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
+        # Playwright Docker image already includes Node & browsers.
 
       - name: Install dependencies
         run: npm ci
-
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
 
       - name: Run DMV appointment bot
         run: npm test
