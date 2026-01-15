@@ -44,18 +44,16 @@ async function getSoonestAppointmentForLocation(page, locationName, opts = {}) {
 
   await page.getByText('Driver Licensing and').click();
 
-  // The "Make Appointment" control can be flaky to show as visible. Use role-based lookup
-  // with a text fallback, wait for visibility, then force-click if needed.
-  const makeApptRole = page.getByRole('button', { name: /make appointment/i }).first();
+  // The "Make Appointment" control: prefer a <button> containing that text, with a text fallback.
+  const makeApptButton = page.locator('button:has-text("Make Appointment")').first();
   const makeApptText = page.locator('text=Make Appointment').first();
-  const makeAppt = makeApptRole;
 
-  await makeAppt.waitFor({ state: 'visible', timeout: 120_000 }).catch(async () => {
+  await makeApptButton.waitFor({ state: 'visible', timeout: 120_000 }).catch(async () => {
     await makeApptText.waitFor({ state: 'visible', timeout: 30_000 });
   });
 
   try {
-    await makeAppt.click({ timeout: 10_000 });
+    await makeApptButton.click({ timeout: 10_000 });
   } catch {
     await makeApptText.scrollIntoViewIfNeeded().catch(() => {});
     await makeApptText.click({ timeout: 10_000, force: true });
