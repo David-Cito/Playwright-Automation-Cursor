@@ -284,10 +284,11 @@ test('dmv appointment bot - check soonest appointments by location', async ({
   const resolvedWindowDays =
     TARGET_WINDOW_ENV === '' ? 60 : Number(TARGET_WINDOW_ENV || 0);
 
+  let alerts = [];
   if (resolvedTargetDate) {
     const targetTime = toTime(resolvedTargetDate);
     const windowMs = Math.abs(resolvedWindowDays) * 24 * 60 * 60 * 1000;
-    const matches = results.filter(
+    alerts = results.filter(
       (r) => {
         if (!r.ok || !r.dataVal) return false;
         const slotDate = r.dataVal.split(' ')[0];
@@ -296,10 +297,10 @@ test('dmv appointment bot - check soonest appointments by location', async ({
         return slotTime >= targetTime - windowMs && slotTime <= targetTime + windowMs;
       }
     );
-    if (matches.length) {
+    if (alerts.length) {
       console.log(
         `NOTIFY: slots within ±${resolvedWindowDays}d of ${resolvedTargetDate} -> ${JSON.stringify(
-          matches
+          alerts
         )}`
       );
     } else {
@@ -307,5 +308,21 @@ test('dmv appointment bot - check soonest appointments by location', async ({
         `NOTIFY: none within ±${resolvedWindowDays}d of ${resolvedTargetDate}`
       );
     }
+  }
+
+  // Persist results for CI/notification steps.
+  const outPath = path.join(process.cwd(), 'dmv-results.json');
+  const payload = {
+    generatedAt: new Date().toISOString(),
+    targetDate: resolvedTargetDate,
+    targetWindowDays: resolvedWindowDays,
+    results,
+    alerts,
+  };
+  try {
+    fs.writeFileSync(outPath, JSON.stringify(payload, null, 2), 'utf8');
+    console.log(`Wrote results to ${outPath}`);
+  } catch (e) {
+    console.log(`Failed to write ${outPath}: ${e && e.message ? e.message : e}`);
   }
 });

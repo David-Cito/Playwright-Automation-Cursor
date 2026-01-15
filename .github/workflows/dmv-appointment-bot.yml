@@ -41,6 +41,41 @@ jobs:
       - name: Run DMV appointment bot
         run: npm test
 
+      - name: Analyze results
+        id: analyze
+        run: |
+          if [ ! -f dmv-results.json ]; then
+            echo "dmv-results.json not found"
+            echo "should_email=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          node <<'EOF'
+          const fs = require('fs');
+          const data = JSON.parse(fs.readFileSync('dmv-results.json', 'utf8'));
+          const alerts = data.alerts || [];
+          console.log(`Alerts found: ${alerts.length}`);
+          const out = alerts.length > 0 ? 'true' : 'false';
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `should_email=${out}\n`);
+          EOF
+
+      # Optional: send an email if any alert matches the target window.
+      # Configure SMTP_* and DMV_EMAIL_* as encrypted repo/organization secrets.
+      - name: Send email notification
+        if: steps.analyze.outputs.should_email == 'true'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: DMV appointment alert
+          to: ${{ secrets.DMV_EMAIL_TO }}
+          from: ${{ secrets.DMV_EMAIL_FROM }}
+          secure: true
+          body: |
+            One or more locations have appointments within your target window.
+            See dmv-results.json in the run artifacts and workflow logs for details.
+
       - name: Upload screenshots
         if: always()
         uses: actions/upload-artifact@v4
