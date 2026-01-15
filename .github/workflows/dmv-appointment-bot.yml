@@ -53,9 +53,79 @@ jobs:
           const fs = require('fs');
           const data = JSON.parse(fs.readFileSync('dmv-results.json', 'utf8'));
           const alerts = data.alerts || [];
+          const results = data.results || [];
+          const targetDate = data.targetDate || '';
+          const windowDays = data.targetWindowDays || 0;
+          const generatedAt = data.generatedAt || new Date().toISOString();
+
+          let should = 'false';
+          const allRows = results.map((r) => {
+            const raw = r.dataVal || '';
+            const date = raw.split(' ')[0] || r.dateText || '';
+            const time = r.timeText || (raw.split(' ')[1] || '');
+            return { loc: r.locationName || 'Unknown', date, time, raw, ok: r.ok, reason: r.reason || '' };
+          });
+
+          let textBody = `No alerts within target window (${targetDate} ±${windowDays}d).\n\nAll locations:\n` +
+            (allRows.length
+              ? allRows.map(r => `- ${r.loc}: ${r.date} ${r.time} (${r.raw || 'n/a'})${r.ok ? '' : ' [no result: ' + r.reason + ']'}`).join('\n')
+              : 'No results');
+
+          let htmlBody = `
+              <h2>DMV Appointment Results</h2>
+              <p>Target window: <strong>${targetDate} ±${windowDays}d</strong></p>
+              <h3>All locations (soonest found)</h3>
+              <table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse;">
+                <thead><tr><th>Location</th><th>Date</th><th>Time</th><th>Raw</th><th>Status</th></tr></thead>
+                <tbody>
+                  ${allRows.length ? allRows.map(r => `<tr><td>${r.loc}</td><td>${r.date}</td><td>${r.time}</td><td>${r.raw}</td><td>${r.ok ? 'OK' : 'No result: ' + r.reason}</td></tr>`).join('') : '<tr><td colspan="5">No results</td></tr>'}
+                </tbody>
+              </table>
+            `;
+
+          if (alerts.length > 0) {
+            should = 'true';
+            const rows = alerts.map((a) => {
+              const raw = a.dataVal || '';
+              const date = raw.split(' ')[0] || a.dateText || '';
+              const time = a.timeText || (raw.split(' ')[1] || '');
+              return { loc: a.locationName || 'Unknown', date, time, raw };
+            });
+            textBody =
+              `Target window: ${targetDate} ±${windowDays}d\n` +
+              `Alerts:\n` +
+              rows.map((r) => `- ${r.loc}: ${r.date} ${r.time} (${r.raw})`).join('\n') +
+              `\n\nAll locations:\n` +
+              (allRows.length
+                ? allRows.map(r => `- ${r.loc}: ${r.date} ${r.time} (${r.raw || 'n/a'})${r.ok ? '' : ' [no result: ' + r.reason + ']'}`).join('\n')
+                : 'No results');
+
+            htmlBody = `
+              <h2>DMV Appointment Alerts</h2>
+              <p>Target window: <strong>${targetDate} ±${windowDays}d</strong></p>
+              <h3>Alerts</h3>
+              <table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; margin-bottom:12px;">
+                <thead><tr><th>Location</th><th>Date</th><th>Time</th><th>Raw</th></tr></thead>
+                <tbody>
+                  ${rows.map(r => `<tr><td>${r.loc}</td><td>${r.date}</td><td>${r.time}</td><td>${r.raw}</td></tr>`).join('')}
+                </tbody>
+              </table>
+              <h3>All locations (soonest found)</h3>
+              <table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse;">
+                <thead><tr><th>Location</th><th>Date</th><th>Time</th><th>Raw</th><th>Status</th></tr></thead>
+                <tbody>
+                  ${allRows.length ? allRows.map(r => `<tr><td>${r.loc}</td><td>${r.date}</td><td>${r.time}</td><td>${r.raw}</td><td>${r.ok ? 'OK' : 'No result: ' + r.reason}</td></tr>`).join('') : '<tr><td colspan="5">No results</td></tr>'}
+                </tbody>
+              </table>
+              <p>Generated at: ${generatedAt}</p>
+            `;
+          }
+
+          const outFile = process.env.GITHUB_OUTPUT;
+          fs.appendFileSync(outFile, `should_email=${should}\n`);
+          fs.appendFileSync(outFile, `email_text<<EOF\n${textBody}\nEOF\n`);
+          fs.appendFileSync(outFile, `email_html<<EOF\n${htmlBody}\nEOF\n`);
           console.log(`Alerts found: ${alerts.length}`);
-          const out = alerts.length > 0 ? 'true' : 'false';
-          fs.appendFileSync(process.env.GITHUB_OUTPUT, `should_email=${out}\n`);
           EOF
 
       # Optional: send an email if any alert matches the target window.
@@ -72,9 +142,8 @@ jobs:
           to: ${{ secrets.DMV_EMAIL_TO }}
           from: ${{ secrets.DMV_EMAIL_FROM }}
           secure: true
-          body: |
-            One or more locations have appointments within your target window.
-            See dmv-results.json in the run artifacts and workflow logs for details.
+          html_body: ${{ steps.analyze.outputs.email_html }}
+          body: ${{ steps.analyze.outputs.email_text }}
 
       - name: Upload screenshots
         if: always()
