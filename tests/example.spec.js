@@ -44,41 +44,42 @@ async function getSoonestAppointmentForLocation(page, locationName, opts = {}) {
 
   await page.getByText('Driver Licensing and').click();
 
-  // The "Make Appointment" control: prefer a <button> containing that text, with a text fallback.
-  const makeApptButton = page.locator('button:has-text("Make Appointment")').first();
-  const makeApptText = page.locator('text=Make Appointment').first();
+  // The "Make Appointment" control: target the explicit element on the start screen.
+  const makeApptButton = page.locator('#newAppointment');
+  const makeApptText = page.locator('#newAppointment >> text=Make Appointment');
+  const header = page.getByText('Select location to schedule ticket at');
 
-  await makeApptButton.waitFor({ state: 'visible', timeout: 120_000 }).catch(async () => {
-    await makeApptText.waitFor({ state: 'visible', timeout: 30_000 });
-  });
+  // If we've already advanced (header visible), skip clicking again.
+  if (!(await header.isVisible().catch(() => false))) {
+    // Wait for the start section and the button to be visible.
+    await page.locator('#start').waitFor({ state: 'visible', timeout: 120_000 });
+    await makeApptButton.waitFor({ state: 'visible', timeout: 120_000 });
 
-  try {
-    await makeApptButton.click({ timeout: 10_000 });
-  } catch {
-    await makeApptText.scrollIntoViewIfNeeded().catch(() => {});
-    await makeApptText.click({ timeout: 10_000, force: true });
+    try {
+      await makeApptButton.click({ timeout: 15_000 });
+    } catch {
+      await makeApptText.scrollIntoViewIfNeeded().catch(() => {});
+      await makeApptText.click({ timeout: 15_000, force: true });
+    }
   }
 
   // Wait for transition to the locations page. The spinner/gear may appear briefly.
   const spinner = page.locator('.loading > .fa').first();
   const gear = page.locator('.fa-cog, .fa-gear').first();
-  const header = page.getByText('Select location to schedule ticket at');
 
-  // If header isn't visible within 45s, retry clicking "Make Appointment" once.
-  const headerPromise = header.waitFor({ timeout: 45_000 }).catch(() => null);
-  const spinnerVisible = spinner.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => null);
-  const spinnerHidden = spinner.waitFor({ state: 'hidden', timeout: 90_000 }).catch(() => null);
-
-  const headerSeen = await headerPromise;
-  if (!headerSeen) {
-    await page.getByText('Make Appointment').click();
+  // If already on the locations page, skip all waits.
+  if (!(await header.isVisible().catch(() => false))) {
+    // Wait for header; if not seen in 45s, retry the click once.
+    const headerSeen = await header.waitFor({ timeout: 45_000 }).catch(() => null);
+    if (!headerSeen) {
+      await makeApptButton.click({ timeout: 15_000 }).catch(async () => {
+        await makeApptText.scrollIntoViewIfNeeded().catch(() => {});
+        await makeApptText.click({ timeout: 15_000, force: true });
+      });
+    }
+    // Final hard wait for header.
+    await header.waitFor({ timeout: 120_000 });
   }
-
-  // Ensure spinner/gear is done (best-effort) and header visible (hard requirement).
-  await spinnerVisible;
-  await spinnerHidden;
-  await gear.waitFor({ state: 'hidden', timeout: 60_000 }).catch(() => {});
-  await header.waitFor({ timeout: 120_000 });
 
   // Location pick (wait for loader/gear to be gone before clicking)
   const locationTile = page
