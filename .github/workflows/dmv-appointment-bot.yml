@@ -58,11 +58,35 @@ jobs:
           const windowDays = data.targetWindowDays || 0;
           const generatedAt = data.generatedAt || new Date().toISOString();
 
+          // TEMP: inject a fake January alert to exercise subject logic; remove after testing.
+          const fakeJanAlert = {
+            locationName: 'Downtown Satellite City Hall',
+            dataVal: '2026-01-12 09:00:00',
+            dateText: '2026-01-12',
+            timeText: '09:00 AM',
+            ok: true,
+            reason: '',
+          };
+          results.unshift(fakeJanAlert);
+          alerts.unshift(fakeJanAlert);
+
           const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
           const ordinal = (n) => {
             const s = ['th','st','nd','rd'];
             const v = n % 100;
             return s[(v - 20) % 10] || s[v] || s[0];
+          };
+          const formatTime = (s) => {
+            if (!s) return '';
+            const trimmed = s.trim();
+            // Preserve existing AM/PM formatting if already provided.
+            if (/am|pm/i.test(trimmed)) return trimmed;
+            const [hh = '', mm = '00'] = trimmed.split(':');
+            const hourNum = Number(hh);
+            if (Number.isNaN(hourNum)) return trimmed;
+            const ampm = hourNum >= 12 ? 'PM' : 'AM';
+            const hour12 = ((hourNum + 11) % 12) + 1;
+            return `${hour12}:${mm.padStart(2, '0')} ${ampm}`;
           };
           const formatDate = (s) => {
             if (!s) return '';
@@ -125,10 +149,27 @@ jobs:
             `;
           }
 
+          // Dynamic subject: include trimmed location and human-friendly date/time.
+          const alertsSorted = [...alerts].sort((a, b) => (a.dataVal || '').localeCompare(b.dataVal || ''));
+          const firstAlert = alertsSorted[0] || {};
+          const raw = firstAlert.dataVal || '';
+          const [rawDate, rawTime] = raw.split(' ');
+          const slotDate = rawDate || firstAlert.dateText || '';
+          const slotTime = rawTime || firstAlert.timeText || '';
+          const locationRaw = firstAlert.locationName || 'Unknown';
+          const trimmedLocation = locationRaw.replace(/\s*Satellite City Hall$/i, '').trim() || locationRaw;
+          const prettyDate = formatDate(slotDate);
+          const prettyTime = formatTime(slotTime);
+          const subjectBase = `DMV appointment alert – ${trimmedLocation}${prettyDate ? ' – ' + prettyDate : ''}${prettyTime ? ' ' + prettyTime : ''}`;
+          const d = slotDate ? new Date(slotDate) : null;
+          const isJanuary = d && !Number.isNaN(d.getTime()) && d.getUTCMonth() === 0;
+          const subject = isJanuary ? subjectBase.toUpperCase() : subjectBase;
+
           const outFile = process.env.GITHUB_OUTPUT;
           fs.appendFileSync(outFile, `should_email=${should}\n`);
           fs.appendFileSync(outFile, `email_text<<EOF\n${textBody}\nEOF\n`);
           fs.appendFileSync(outFile, `email_html<<EOF\n${htmlBody}\nEOF\n`);
+          fs.appendFileSync(outFile, `subject=${subject}\n`);
           console.log(`Alerts found: ${alerts.length}`);
           EOF
 
@@ -142,7 +183,7 @@ jobs:
           server_port: ${{ secrets.SMTP_PORT }}
           username: ${{ secrets.SMTP_USERNAME }}
           password: ${{ secrets.SMTP_PASSWORD }}
-          subject: DMV appointment alert
+          subject: ${{ steps.analyze.outputs.subject }}
           to: ${{ secrets.DMV_EMAIL_TO }}
           from: ${{ secrets.DMV_EMAIL_FROM }}
           secure: true
