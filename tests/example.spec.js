@@ -43,7 +43,19 @@ async function getSoonestAppointmentForLocation(page, locationName, opts = {}) {
   }
 
   await page.getByText('Driver Licensing and').click();
-  await page.getByText('Make Appointment').click();
+
+  // The "Make Appointment" control can be flaky to show as "visible". Target both the
+  // span and its parent button, wait for it to be attached, then force-click as needed.
+  const makeAppt = page.locator(
+    '#button_schedule_ticket:has-text("Make Appointment"), #text_button_schedule_ticket:has-text("Make Appointment"), text=Make Appointment'
+  );
+  await makeAppt.first().waitFor({ state: 'attached', timeout: 120_000 });
+  try {
+    await makeAppt.first().click({ timeout: 10_000 });
+  } catch {
+    await makeAppt.first().scrollIntoViewIfNeeded();
+    await makeAppt.first().click({ timeout: 10_000, force: true });
+  }
 
   // Wait for transition to the locations page. The spinner may appear briefly.
   const spinner = page.locator('.loading > .fa').first();

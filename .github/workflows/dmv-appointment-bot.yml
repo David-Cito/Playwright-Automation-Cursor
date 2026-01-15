@@ -40,3 +40,11 @@ jobs:
 
       - name: Run DMV appointment bot
         run: npm test
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: screenshots/
+          if-no-files-found: ignore
