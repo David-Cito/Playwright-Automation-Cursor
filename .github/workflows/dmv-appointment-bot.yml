@@ -27,9 +27,9 @@ jobs:
       group: appointment-capture
       cancel-in-progress: true
     env:
-      # Priority: manual input > repo variable DMV_TARGET_DATE > fallback
-      DMV_TARGET_DATE: ${{ github.event_name == 'workflow_dispatch' && inputs.target_date || vars.DMV_TARGET_DATE || '' }}
-      DMV_TARGET_WINDOW_DAYS: ${{ github.event_name == 'workflow_dispatch' && inputs.target_window_days || vars.DMV_TARGET_WINDOW_DAYS || '60' }}
+      # Priority: manual input > dispatch payload > repo variable DMV_TARGET_DATE > fallback
+      DMV_TARGET_DATE: ${{ github.event_name == 'workflow_dispatch' && inputs.target_date || (github.event_name == 'repository_dispatch' && github.event.client_payload.target_date) || vars.DMV_TARGET_DATE || '' }}
+      DMV_TARGET_WINDOW_DAYS: ${{ github.event_name == 'workflow_dispatch' && inputs.target_window_days || (github.event_name == 'repository_dispatch' && github.event.client_payload.target_window_days) || vars.DMV_TARGET_WINDOW_DAYS || '60' }}
 
     steps:
       - name: Checkout repo
