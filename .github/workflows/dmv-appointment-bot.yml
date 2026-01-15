@@ -165,6 +165,14 @@ jobs:
       - name: Aggregate API captures
         run: npm run aggregate:capture
 
+      - name: Upload API captures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-captures
+          path: api-captures/
+          if-no-files-found: ignore
+
       # Email notification disabled for now; leave config as a quick toggle.
       # - name: Send email notification
       #   if: steps.analyze.outputs.should_email == 'true'

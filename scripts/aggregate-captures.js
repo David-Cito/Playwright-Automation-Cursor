@@ -8,6 +8,12 @@ const path = require('path');
 const CAPTURE_DIR = path.join(process.cwd(), 'api-captures');
 const OUT_CSV = path.join(CAPTURE_DIR, 'master.csv');
 
+function ensureDirExists(dir) {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+}
+
 function listCaptureFiles() {
   if (!fs.existsSync(CAPTURE_DIR)) return [];
   return fs
@@ -25,6 +31,7 @@ function asCsvValue(v) {
 }
 
 function writeCsv(rows) {
+  ensureDirExists(CAPTURE_DIR);
   const header = [
     'runId',
     'runLabel',
