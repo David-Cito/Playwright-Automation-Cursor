@@ -44,21 +44,26 @@ async function getSoonestAppointmentForLocation(page, locationName, opts = {}) {
 
   await page.getByText('Driver Licensing and').click();
 
-  // The "Make Appointment" control can be flaky to show as "visible". Target both the
-  // span and its parent button, wait for it to be attached, then force-click as needed.
-  const makeAppt = page.locator(
-    '#button_schedule_ticket:has-text("Make Appointment"), #text_button_schedule_ticket:has-text("Make Appointment"), text=Make Appointment'
-  );
-  await makeAppt.first().waitFor({ state: 'attached', timeout: 120_000 });
+  // The "Make Appointment" control can be flaky to show as visible. Use role-based lookup
+  // with a text fallback, wait for visibility, then force-click if needed.
+  const makeApptRole = page.getByRole('button', { name: /make appointment/i }).first();
+  const makeApptText = page.locator('text=Make Appointment').first();
+  const makeAppt = makeApptRole;
+
+  await makeAppt.waitFor({ state: 'visible', timeout: 120_000 }).catch(async () => {
+    await makeApptText.waitFor({ state: 'visible', timeout: 30_000 });
+  });
+
   try {
-    await makeAppt.first().click({ timeout: 10_000 });
+    await makeAppt.click({ timeout: 10_000 });
   } catch {
-    await makeAppt.first().scrollIntoViewIfNeeded();
-    await makeAppt.first().click({ timeout: 10_000, force: true });
+    await makeApptText.scrollIntoViewIfNeeded().catch(() => {});
+    await makeApptText.click({ timeout: 10_000, force: true });
   }
 
-  // Wait for transition to the locations page. The spinner may appear briefly.
+  // Wait for transition to the locations page. The spinner/gear may appear briefly.
   const spinner = page.locator('.loading > .fa').first();
+  const gear = page.locator('.fa-cog, .fa-gear').first();
   const header = page.getByText('Select location to schedule ticket at');
 
   // If header isn't visible within 45s, retry clicking "Make Appointment" once.
@@ -71,16 +76,18 @@ async function getSoonestAppointmentForLocation(page, locationName, opts = {}) {
     await page.getByText('Make Appointment').click();
   }
 
-  // Ensure spinner is done (best-effort) and header visible (hard requirement).
+  // Ensure spinner/gear is done (best-effort) and header visible (hard requirement).
   await spinnerVisible;
   await spinnerHidden;
+  await gear.waitFor({ state: 'hidden', timeout: 60_000 }).catch(() => {});
   await header.waitFor({ timeout: 120_000 });
 
-  // Location pick
+  // Location pick (wait for loader/gear to be gone before clicking)
   const locationTile = page
     .locator('.location.button-look.next')
     .filter({ hasText: locationName })
     .first();
+  await gear.waitFor({ state: 'hidden', timeout: 30_000 }).catch(() => {});
   await locationTile.waitFor({ state: 'visible', timeout: 30_000 });
   try {
     // Avoid scrolling too early; try clicking as-is first.
@@ -96,6 +103,7 @@ async function getSoonestAppointmentForLocation(page, locationName, opts = {}) {
   await page
     .getByText('DRIVER LICENSE & STATE ID Renewals')
     .waitFor({ timeout: 30_000 });
+  await gear.waitFor({ state: 'hidden', timeout: 30_000 }).catch(() => {});
   await page
     .getByText('DRIVER LICENSE & STATE ID Renewals')
     .click();
@@ -121,7 +129,7 @@ async function getSoonestAppointmentForLocation(page, locationName, opts = {}) {
   }
   await dayLink.click();
 
-  // After choosing a day, the page may show the loading spinner again while it
+  // After choosing a day, the page may show the loading spinner/gear again while it
   // fetches available times. Use a DOM-based readiness check to be robust:
   // wait until at least one `.time` element with `data-val` exists.
   await page.waitForFunction(
@@ -133,6 +141,7 @@ async function getSoonestAppointmentForLocation(page, locationName, opts = {}) {
     },
     { timeout: 60_000 }
   );
+  await gear.waitFor({ state: 'hidden', timeout: 60_000 }).catch(() => {});
 
   // Now safely read all available slots from `.time_wrap .time[data-val]`.
   const slots = await page.$$eval('.time_wrap .time[data-val]', (els) =>
